@@ -428,7 +428,6 @@
         </div>
     </div>
 
-    <script src="config.js"></script>
     <script>
         let allModels = [];
         let filteredModels = [];
@@ -436,40 +435,18 @@
         let currentType = 'text';
 
         async function loadModels() {
-            const apiKey = CONFIG.VENICE_API_KEY;
-
             // Show loading
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('error').classList.add('hidden');
 
             try {
-                // Request models for all types (includes upscale and inpaint)
-                const types = ['text', 'image', 'video', 'tts', 'asr', 'embedding', 'upscale', 'inpaint'];
-                const modelsByType = await Promise.all(
-                    types.map(type =>
-                        fetch(`https://api.venice.ai/api/v1/models?type=${type}`, {
-                            method: 'GET',
-                            headers: {
-                                'Authorization': `Bearer ${apiKey}`,
-                                'Content-Type': 'application/json'
-                            }
-                        }).then(response => {
-                            if (!response.ok) {
-                                return { data: [] };
-                            }
-                            return response.json();
-                        }).catch(() => ({ data: [] }))
-                    )
-                );
+                const response = await fetch('/api/models');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch models');
+                }
+                const data = await response.json();
+                allModels = data.data || [];
 
-                // Combine all models from all types
-                allModels = [];
-                modelsByType.forEach((data, index) => {
-                    if (data.data && Array.isArray(data.data)) {
-                        allModels = allModels.concat(data.data);
-                    }
-                });
-                
                 if (allModels.length === 0) {
                     throw new Error('No models returned from API');
                 }
