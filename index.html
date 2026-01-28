@@ -395,8 +395,8 @@
             document.getElementById('error').classList.add('hidden');
 
             try {
-                // Request models for all types (audio includes both tts and asr)
-                const types = ['text', 'image', 'video', 'tts', 'asr', 'embedding'];
+                // Request models for all types (includes upscale and inpaint)
+                const types = ['text', 'image', 'video', 'tts', 'asr', 'embedding', 'upscale', 'inpaint'];
                 const modelsByType = await Promise.all(
                     types.map(type =>
                         fetch(`https://api.venice.ai/api/v1/models?type=${type}`, {
@@ -461,7 +461,7 @@
         }
 
         function setupTypeTabs() {
-            const types = ['text', 'image', 'video', 'audio', 'embedding'];
+            const types = ['text', 'image', 'video', 'audio', 'embedding', 'upscale', 'inpaint'];
             const typeTabs = document.getElementById('typeTabs');
             
             let tabsHTML = `<div class="type-tab active" onclick="filterByType('all')">ALL (${allModels.length})</div>`;
