@@ -39,35 +39,6 @@
             margin-bottom: 10px;
         }
 
-        .api-key-section {
-            padding: 20px 30px;
-            background: #f8f9fa;
-            border-bottom: 1px solid #e9ecef;
-        }
-
-        .api-key-section.hidden {
-            display: none;
-        }
-
-        .api-key-input-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .api-key-input-group input {
-            flex: 1;
-            padding: 12px 15px;
-            border: 2px solid #e9ecef;
-            border-radius: 6px;
-            font-size: 14px;
-            font-family: 'Courier New', monospace;
-        }
-
-        .api-key-input-group input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
 
         .btn {
             padding: 12px 24px;
@@ -97,20 +68,6 @@
             background: #5a6268;
         }
 
-        .api-help {
-            font-size: 13px;
-            color: #6c757d;
-            margin-top: 10px;
-        }
-
-        .api-help a {
-            color: #667eea;
-            text-decoration: none;
-        }
-
-        .api-help a:hover {
-            text-decoration: underline;
-        }
 
         .loading {
             padding: 60px 20px;
@@ -366,28 +323,12 @@
             <p>Fetches models directly from the Venice API</p>
         </div>
 
-        <div class="api-key-section" id="apiKeySection">
-            <div class="api-key-input-group">
-                <input 
-                    type="password" 
-                    id="apiKeyInput" 
-                    placeholder="Enter your Venice API key..."
-                    autocomplete="off"
-                >
-                <button class="btn btn-primary" onclick="loadModels()">Load Models</button>
-            </div>
-            <div class="api-help">
-                Don't have an API key? Get one at <a href="https://venice.ai" target="_blank">venice.ai</a>
-                <br>Your key is only used in your browser and never stored.
-            </div>
-        </div>
-
-        <div class="loading hidden" id="loading">
+        <div class="loading" id="loading">
             <div class="loading-spinner"></div>
             <div>Loading models from Venice API...</div>
         </div>
 
-        <div class="error hidden" id="error">
+        <div class="error hidden" id="error" style="display: none;">
             <h3>Error Loading Models</h3>
             <p id="errorMessage"></p>
         </div>
@@ -439,6 +380,7 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script>
         let allModels = [];
         let filteredModels = [];
@@ -446,60 +388,70 @@
         let currentType = 'text';
 
         async function loadModels() {
-            const apiKey = document.getElementById('apiKeyInput').value.trim();
-            
-            if (!apiKey) {
-                showError('Please enter your Venice API key');
-                return;
-            }
+            const apiKey = CONFIG.VENICE_API_KEY;
 
             // Show loading
-            document.getElementById('apiKeySection').classList.add('hidden');
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('error').classList.add('hidden');
 
             try {
-                const response = await fetch('https://api.venice.ai/api/v1/models', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
+                // Request models for all types (audio includes both tts and asr)
+                const types = ['text', 'image', 'video', 'tts', 'asr', 'embedding'];
+                const modelsByType = await Promise.all(
+                    types.map(type =>
+                        fetch(`https://api.venice.ai/api/v1/models?type=${type}`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${apiKey}`,
+                                'Content-Type': 'application/json'
+                            }
+                        }).then(response => {
+                            if (!response.ok) {
+                                return { data: [] };
+                            }
+                            return response.json();
+                        }).catch(() => ({ data: [] }))
+                    )
+                );
+
+                // Combine all models from all types
+                allModels = [];
+                modelsByType.forEach((data, index) => {
+                    if (data.data && Array.isArray(data.data)) {
+                        allModels = allModels.concat(data.data);
                     }
                 });
-
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        throw new Error('Invalid API key. Please check your key and try again.');
-                    } else {
-                        throw new Error(`API error: ${response.status} ${response.statusText}`);
-                    }
-                }
-
-                const data = await response.json();
-                allModels = data.data || [];
                 
                 if (allModels.length === 0) {
                     throw new Error('No models returned from API');
                 }
 
-                // Hide loading, show content
-                document.getElementById('loading').classList.add('hidden');
-                document.getElementById('typeTabs').classList.remove('hidden');
-                document.getElementById('controls').classList.remove('hidden');
-                document.getElementById('tableContainer').classList.remove('hidden');
-                document.getElementById('stats').classList.remove('hidden');
+                // Hide loading and error, show content
+                const loadingEl = document.getElementById('loading');
+                const errorEl = document.getElementById('error');
+                const typeTabsEl = document.getElementById('typeTabs');
+                const controlsEl = document.getElementById('controls');
+                const tableEl = document.getElementById('tableContainer');
+                const statsEl = document.getElementById('stats');
+                
+                loadingEl.style.display = 'none';
+                errorEl.style.display = 'none';
+                typeTabsEl.classList.remove('hidden');
+                controlsEl.classList.remove('hidden');
+                tableEl.classList.remove('hidden');
+                statsEl.classList.remove('hidden');
 
                 // Setup type tabs
                 setupTypeTabs();
                 
-                // Filter to text models by default
-                filterByType('text');
+                // Filter to all models by default
+                filterByType('all');
                 
             } catch (error) {
                 console.error('Error loading models:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
                 showError(error.message);
-                document.getElementById('loading').classList.add('hidden');
-                document.getElementById('apiKeySection').classList.remove('hidden');
             }
         }
 
@@ -509,37 +461,48 @@
         }
 
         function setupTypeTabs() {
-            const types = [...new Set(allModels.map(m => m.type))];
+            const types = ['text', 'image', 'video', 'audio', 'embedding'];
             const typeTabs = document.getElementById('typeTabs');
             
-            typeTabs.innerHTML = types.map(type => {
-                const count = allModels.filter(m => m.type === type).length;
-                return `<div class="type-tab ${type === 'text' ? 'active' : ''}" onclick="filterByType('${type}')">${type.toUpperCase()} (${count})</div>`;
+            let tabsHTML = `<div class="type-tab active" onclick="filterByType('all')">ALL (${allModels.length})</div>`;
+            tabsHTML += types.map(type => {
+                let count = 0;
+                if (type === 'audio') {
+                    // Audio combines both tts and asr
+                    count = allModels.filter(m => m.type === 'tts' || m.type === 'asr').length;
+                } else {
+                    count = allModels.filter(m => m.type === type).length;
+                }
+                return `<div class="type-tab" onclick="filterByType('${type}')">${type.toUpperCase()} (${count})</div>`;
             }).join('');
+            
+            typeTabs.innerHTML = tabsHTML;
         }
 
         function filterByType(type) {
             currentType = type;
-            
+
             // Update active tab
             document.querySelectorAll('.type-tab').forEach(tab => {
                 tab.classList.remove('active');
+                const tabType = tab.textContent.toLowerCase().split(' ')[0];
+                if ((type === 'all' && tabType === 'all') || (type !== 'all' && tabType === type)) {
+                    tab.classList.add('active');
+                }
             });
-            event.target.classList.add('active');
-            
+
             // Setup filters for this type
             setupFilters(type);
-            
+
             // Apply filter
             currentFilter = 'all';
             filterModels('all');
         }
 
         function setupFilters(type) {
-            const typeModels = allModels.filter(m => m.type === type);
             const filterGroup = document.getElementById('filterGroup');
             
-            if (type === 'text') {
+            if (type === 'all' || type === 'text') {
                 filterGroup.innerHTML = `
                     <button class="filter-btn active" data-filter="all">All Models</button>
                     <button class="filter-btn" data-filter="reasoning">Reasoning</button>
@@ -566,27 +529,29 @@
         function filterModels(filterType) {
             currentFilter = filterType;
             
-            // Start with models of current type
-            let models = allModels.filter(m => m.type === currentType);
+            // Start with models - either all or filtered by type
+            let models = currentType === 'all' ? allModels : 
+                         currentType === 'audio' ? allModels.filter(m => m.type === 'tts' || m.type === 'asr') :
+                         allModels.filter(m => m.type === currentType);
             
             if (filterType === 'all') {
                 filteredModels = models;
             } else if (filterType === 'reasoning') {
-                filteredModels = models.filter(m => m.model_spec.capabilities.supportsReasoning);
+                filteredModels = models.filter(m => m.model_spec?.capabilities?.supportsReasoning);
             } else if (filterType === 'vision') {
-                filteredModels = models.filter(m => m.model_spec.capabilities.supportsVision);
+                filteredModels = models.filter(m => m.model_spec?.capabilities?.supportsVision);
             } else if (filterType === 'code') {
-                filteredModels = models.filter(m => m.model_spec.capabilities.optimizedForCode);
+                filteredModels = models.filter(m => m.model_spec?.capabilities?.optimizedForCode);
             } else if (filterType === 'private') {
-                filteredModels = models.filter(m => m.model_spec.privacy === 'private');
+                filteredModels = models.filter(m => m.model_spec?.privacy === 'private');
             }
             
             // Apply search if there's a query
             const searchQuery = document.getElementById('searchInput').value.toLowerCase();
             if (searchQuery) {
                 filteredModels = filteredModels.filter(m => {
-                    const name = m.model_spec.name.toLowerCase();
-                    const desc = (m.model_spec.description || '').toLowerCase();
+                    const name = m.model_spec?.name?.toLowerCase() || '';
+                    const desc = (m.model_spec?.description || '').toLowerCase();
                     return name.includes(searchQuery) || desc.includes(searchQuery);
                 });
             }
@@ -604,18 +569,21 @@
 
         function getCapabilityBadges(model) {
             const badges = [];
-            const caps = model.model_spec.capabilities;
+            const caps = model.model_spec?.capabilities;
+            
+            if (!caps) return badges.join('');
             
             if (caps.optimizedForCode) badges.push('<span class="badge badge-code">Code</span>');
             if (caps.supportsVision) badges.push('<span class="badge badge-vision">Vision</span>');
             if (caps.supportsReasoning) badges.push('<span class="badge badge-reasoning">Reasoning</span>');
             if (caps.supportsAudioInput) badges.push('<span class="badge badge-audio">Audio</span>');
-            if (model.model_spec.betaModel) badges.push('<span class="badge badge-beta">Beta</span>');
+            if (model.model_spec?.betaModel) badges.push('<span class="badge badge-beta">Beta</span>');
             
             return badges.join('');
         }
 
         function getPrivacyBadge(privacy) {
+            if (!privacy) return '<span class="badge">Unknown</span>';
             const privacyClass = privacy === 'private' ? 'badge-private' : 'badge-anonymized';
             return `<span class="badge ${privacyClass}">${privacy}</span>`;
         }
@@ -634,13 +602,15 @@
             
             tbody.innerHTML = filteredModels.map(model => {
                 const spec = model.model_spec;
+                const inputPrice = spec.pricing?.input?.usd || 0;
+                const outputPrice = spec.pricing?.output?.usd || 0;
                 return `
                     <tr>
                         <td><div class="model-name">${spec.name}</div></td>
                         <td><div class="description">${spec.description || '-'}</div></td>
                         <td><div class="context">${formatContext(spec.availableContextTokens)}</div></td>
-                        <td><div class="price">${formatPrice(spec.pricing.input.usd)}/M</div></td>
-                        <td><div class="price">${formatPrice(spec.pricing.output.usd)}/M</div></td>
+                        <td><div class="price">${formatPrice(inputPrice)}/M</div></td>
+                        <td><div class="price">${formatPrice(outputPrice)}/M</div></td>
                         <td>${getCapabilityBadges(model)}</td>
                         <td>${getPrivacyBadge(spec.privacy)}</td>
                     </tr>
@@ -651,13 +621,21 @@
         }
 
         function updateStats() {
-            const typeModels = allModels.filter(m => m.type === currentType);
+            let typeModels;
+            if (currentType === 'all') {
+                typeModels = allModels;
+            } else if (currentType === 'audio') {
+                typeModels = allModels.filter(m => m.type === 'tts' || m.type === 'asr');
+            } else {
+                typeModels = allModels.filter(m => m.type === currentType);
+            }
             document.getElementById('totalModels').textContent = typeModels.length;
             document.getElementById('visibleModels').textContent = filteredModels.length;
             
-            const avgContext = filteredModels.reduce((sum, m) => 
-                sum + m.model_spec.availableContextTokens, 0) / filteredModels.length;
-            document.getElementById('avgContext').textContent = Math.round(avgContext / 1000);
+            const avgContext = filteredModels.length > 0 ? 
+                Math.round(filteredModels.reduce((sum, m) => 
+                    sum + (m.model_spec?.availableContextTokens || 0), 0) / filteredModels.length / 1000) : 0;
+            document.getElementById('avgContext').textContent = avgContext;
         }
 
         // Search handler
@@ -665,12 +643,8 @@
             filterModels(currentFilter);
         });
 
-        // Allow Enter key to submit API key
-        document.getElementById('apiKeyInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                loadModels();
-            }
-        });
+        // Auto-load models on page load
+        loadModels();
     </script>
 </body>
 </html>
