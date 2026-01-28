@@ -208,6 +208,14 @@
             color: #667eea;
         }
 
+        .model-type {
+            font-size: 10px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+
         .badge {
             display: inline-block;
             padding: 4px 8px;
@@ -610,7 +618,7 @@
                 const outputPrice = spec.pricing?.output?.usd || 0;
                 return `
                     <tr>
-                        <td><div class="model-name">${spec.name}</div></td>
+                        <td><div class="model-name">${spec.name}</div><div class="model-type">${model.type}</div></td>
                         <td><div class="description">${spec.description || '-'}</div></td>
                         <td><div class="context">${formatContext(spec.availableContextTokens)}</div></td>
                         <td><div class="price">${formatPrice(inputPrice)}/M</div></td>
