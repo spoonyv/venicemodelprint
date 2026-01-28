@@ -461,21 +461,24 @@
         }
 
         function setupTypeTabs() {
-            const types = ['text', 'image', 'video', 'audio', 'embedding', 'upscale', 'inpaint'];
+            const types = ['text', 'image', 'video', 'audio', 'embedding'];
             const typeTabs = document.getElementById('typeTabs');
-            
+
             let tabsHTML = `<div class="type-tab active" onclick="filterByType('all')">ALL (${allModels.length})</div>`;
             tabsHTML += types.map(type => {
                 let count = 0;
                 if (type === 'audio') {
                     // Audio combines both tts and asr
                     count = allModels.filter(m => m.type === 'tts' || m.type === 'asr').length;
+                } else if (type === 'image') {
+                    // Image includes image, upscale, and inpaint
+                    count = allModels.filter(m => m.type === 'image' || m.type === 'upscale' || m.type === 'inpaint').length;
                 } else {
                     count = allModels.filter(m => m.type === type).length;
                 }
                 return `<div class="type-tab" onclick="filterByType('${type}')">${type.toUpperCase()} (${count})</div>`;
             }).join('');
-            
+
             typeTabs.innerHTML = tabsHTML;
         }
 
@@ -530,8 +533,9 @@
             currentFilter = filterType;
             
             // Start with models - either all or filtered by type
-            let models = currentType === 'all' ? allModels : 
+            let models = currentType === 'all' ? allModels :
                          currentType === 'audio' ? allModels.filter(m => m.type === 'tts' || m.type === 'asr') :
+                         currentType === 'image' ? allModels.filter(m => m.type === 'image' || m.type === 'upscale' || m.type === 'inpaint') :
                          allModels.filter(m => m.type === currentType);
             
             if (filterType === 'all') {
@@ -626,6 +630,8 @@
                 typeModels = allModels;
             } else if (currentType === 'audio') {
                 typeModels = allModels.filter(m => m.type === 'tts' || m.type === 'asr');
+            } else if (currentType === 'image') {
+                typeModels = allModels.filter(m => m.type === 'image' || m.type === 'upscale' || m.type === 'inpaint');
             } else {
                 typeModels = allModels.filter(m => m.type === currentType);
             }
