@@ -3,3 +3,4 @@ config.js
 .env.local
 .vercel
 .env*.local
+FUTURE.md
